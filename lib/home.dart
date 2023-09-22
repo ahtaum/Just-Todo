@@ -63,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // show modal
   Future<void> _showModal() async {
     await showDialog(
       context: context,
@@ -116,6 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Tutup dialog jika dibatalkan
+                        },
+                        child: Text('Batal'),
+                      ),
                       ElevatedButton(
                         onPressed: () {
                           _submitForm();
@@ -124,12 +131,164 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Text('Tambah'),
                       ),
                       SizedBox(width: 10),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Delete Data
+  Future<void> _deleteData(int index) async {
+    final item = data[index];
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Hapus Data'),
+          content: Text('Apakah Anda yakin ingin menghapus data ini?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Tutup dialog konfirmasi
+              },
+              child: Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                // Hapus data dari Supabase
+                await supabase
+                    .from('dummy')
+                    .delete()
+                    .eq('id', item['id'])
+                    .execute();
+
+                // Hapus item dari daftar data lokal
+                setState(() {
+                  data.removeAt(index);
+                });
+
+                Navigator.of(context).pop(); // Tutup dialog konfirmasi
+              },
+              child: Text('Hapus'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Update Data
+  Future<void> _updateData(int index) async {
+    final item = data[index];
+
+    // Tampilkan dialog untuk mengedit data
+    await showDialog(
+      context: context,
+      builder: (context) {
+        final _editFormKey = GlobalKey<FormState>();
+        final TextEditingController _editTitleController =
+            TextEditingController(text: item['title']);
+        final TextEditingController _editBodyController =
+            TextEditingController(text: item['body']);
+        final TextEditingController _editDaysController =
+            TextEditingController(text: item['days'].toString());
+
+        return AlertDialog(
+          title: Text('Edit Data'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _editFormKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: _editTitleController,
+                    decoration: InputDecoration(labelText: 'Title'),
+                    validator: (value) {
+                      if (value!.isEmpty) {
+                        return 'Title tidak boleh kosong';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 12),
+                  TextFormField(
+                    controller: _editBodyController,
+                    maxLines: 3,
+                    decoration: InputDecoration(labelText: 'Body'),
+                    validator: (value) {
+                      if (value!.isEmpty) {
+                        return 'Body tidak boleh kosong';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 12),
+                  TextFormField(
+                    controller: _editDaysController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: 'Days'),
+                    validator: (value) {
+                      if (value!.isEmpty) {
+                        return 'Days tidak boleh kosong';
+                      }
+                      if (int.tryParse(value) == null) {
+                        return 'Days harus berupa angka';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).pop(); // Tutup dialog jika dibatalkan
                         },
                         child: Text('Batal'),
                       ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (_editFormKey.currentState!.validate()) {
+                            // Update data di Supabase
+                            final updatedTitle = _editTitleController.text;
+                            final updatedBody = _editBodyController.text;
+                            final updatedDays =
+                                int.parse(_editDaysController.text);
+
+                            final response = await supabase
+                                .from('dummy')
+                                .update({
+                                  'title': updatedTitle,
+                                  'body': updatedBody,
+                                  'days': updatedDays,
+                                })
+                                .eq('id', item['id'])
+                                .execute();
+
+                            if (response.status == 200) {
+                              // Update item di daftar data lokal
+                              setState(() {
+                                item['title'] = updatedTitle;
+                                item['body'] = updatedBody;
+                                item['days'] = updatedDays;
+                              });
+
+                              Navigator.of(context).pop(); // Tutup dialog setelah mengirim data
+                            } else {
+                              print(response);
+                            }
+                          }
+                        },
+                        child: Text('Simpan'),
+                      ),
+                      SizedBox(width: 10),
                     ],
                   ),
                 ],
@@ -154,18 +313,12 @@ class _HomeScreenState extends State<HomeScreen> {
             if (isLoading)
               CircularProgressIndicator(),
             if (!isLoading && data.isNotEmpty)
-              ListView(
+              ListView.builder(
                 shrinkWrap: true,
-                children: data.map((item) => InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailTodo(item: item),
-                      ),
-                    );
-                  },
-                  child: Card(
+                itemCount: data.length,
+                itemBuilder: (context, index) {
+                  final item = data[index];
+                  return Card(
                     elevation: 5,
                     margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Padding(
@@ -181,11 +334,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           SizedBox(height: 8),
                           Text('Days: ${item['days']}'),
+                          SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () {
+                                  _deleteData(index);
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.edit),
+                                onPressed: () {
+                                  _updateData(index);
+                                },
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                )).toList(),
+                  );
+                },
               ),
             if (!isLoading && data.isEmpty)
               Text('Belum ada data dari Supabase'),
