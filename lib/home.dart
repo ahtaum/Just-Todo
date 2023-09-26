@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ElevatedButton(
                         onPressed: () {
                           _submitForm();
-                          Navigator.of(context).pop(); // Tutup dialog setelah mengirim data
+                          Navigator.of(context).pop();
                         },
                         child: Text('Tambah'),
                       ),
